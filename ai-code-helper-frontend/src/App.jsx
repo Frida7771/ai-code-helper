@@ -6,10 +6,31 @@ import { chatWithSSE } from './api/chatApi.js'
 import { generateMemoryId, normalizeEnglishSpacing } from './utils/index.js'
 import { marked } from 'marked'
 
+const renderer = new marked.Renderer()
+const normalizeHref = (href) => {
+  if (href === null || href === undefined) return ''
+  let cleaned = String(href).trim()
+  cleaned = cleaned.replace(/[.,;:!?]+$/, '')
+  if (cleaned.startsWith('www.')) {
+    cleaned = `https://${cleaned}`
+  }
+  return cleaned
+}
+renderer.link = function link(token) {
+  // marked.js v5+ passes a token object; older versions pass (href, title, text)
+  const href = typeof token === 'object' ? token.href : token
+  const title = typeof token === 'object' ? token.title : arguments[1]
+  const text = typeof token === 'object' ? token.text : arguments[2]
+  const safeHref = normalizeHref(href)
+  const safeTitle = title ? ` title="${title}"` : ''
+  return `<a href="${safeHref}"${safeTitle} target="_blank" rel="noopener noreferrer">${text || ''}</a>`
+}
+
 marked.setOptions({
   breaks: true,
   gfm: true,
   sanitize: false,
+  renderer,
   highlight: function highlight(code) {
     return code
   }
@@ -87,6 +108,34 @@ export default function App() {
     finishAiResponse()
   }, [finishAiResponse])
 
+  const stopStreaming = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    finishAiResponse()
+  }, [finishAiResponse])
+
+  const handleCopyMessage = useCallback((text) => {
+    if (!text) return
+    navigator.clipboard?.writeText(text)
+      .catch((error) => console.error('Copy failed:', error))
+  }, [])
+
+  const handleDownloadMessage = useCallback((text, timestamp) => {
+    if (!text) return
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const time = timestamp instanceof Date ? timestamp.toISOString().replace(/[:.]/g, '-') : Date.now()
+    link.href = url
+    link.download = `ai-response-${time}.md`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [])
+
   const startAiResponse = useCallback((userMessage) => {
     setIsAiTyping(true)
     setIsStreaming(true)
@@ -106,6 +155,15 @@ export default function App() {
       handleAiClose
     )
   }, [memoryId, handleAiMessage, handleAiError, handleAiClose])
+
+  const handleRetryMessage = useCallback((index) => {
+    if (isAiTyping) return
+    if (index <= 0) return
+    const previous = messages[index - 1]
+    if (!previous || !previous.isUser) return
+    addMessage(previous.content, true)
+    startAiResponse(previous.content)
+  }, [addMessage, isAiTyping, messages, startAiResponse])
 
   const sendMessage = useCallback((message) => {
     addMessage(message, true)
@@ -156,12 +214,16 @@ export default function App() {
             </div>
           )}
 
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <ChatMessage
               key={message.id}
               message={message.content}
               isUser={message.isUser}
               timestamp={message.timestamp}
+              isBusy={isAiTyping}
+              onCopy={() => handleCopyMessage(message.content)}
+              onDownload={() => handleDownloadMessage(message.content, message.timestamp)}
+              onRetry={() => handleRetryMessage(index)}
             />
           ))}
 
@@ -185,6 +247,17 @@ export default function App() {
           )}
         </div>
 
+        {isAiTyping && (
+          <div className="chat-controls">
+            <button
+              type="button"
+              className="chat-control-button"
+              onClick={stopStreaming}
+            >
+              Stop generating
+            </button>
+          </div>
+        )}
         <ChatInput
           disabled={isAiTyping}
           onSendMessage={sendMessage}

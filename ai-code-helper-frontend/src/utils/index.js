@@ -53,8 +53,20 @@ export function debounce(func, wait) {
 export function normalizeEnglishSpacing(text) {
     if (!text) return text
 
+    const maskedSegments = []
+    const mask = (match) => {
+        const token = `__MASK_${maskedSegments.length}__`
+        maskedSegments.push(match)
+        return token
+    }
+
     const normalizeInline = (segment) => {
-        const parts = segment.split(/(`[^`]*`)/g)
+        // Protect URLs and Markdown links from spacing fixes.
+        const protectedSegment = segment
+            .replace(/\[[^\]]+\]\([^)]+\)/g, mask)
+            .replace(/https?:\/\/[^\s)]+/g, mask)
+
+        const parts = protectedSegment.split(/(`[^`]*`)/g)
         return parts.map((part) => {
             if (part.startsWith('`') && part.endsWith('`')) {
                 return part
@@ -71,10 +83,14 @@ export function normalizeEnglishSpacing(text) {
     }
 
     const fenceParts = text.split(/```/g)
-    return fenceParts.map((part, index) => {
+    const normalized = fenceParts.map((part, index) => {
         if (index % 2 === 1) {
             return part
         }
         return normalizeInline(part)
     }).join('```')
+
+    return maskedSegments.reduce((current, original, index) => {
+        return current.replace(`__MASK_${index}__`, original)
+    }, normalized)
 }
