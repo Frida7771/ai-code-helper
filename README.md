@@ -2,6 +2,8 @@
 
 > An AI-powered programming learning and interview preparation assistant built with LangChain4j and OpenAI.
 
+![AI Code Helper Demo](assets/demo.jpg)
+
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://react.dev/)
 [![LangChain4j](https://img.shields.io/badge/LangChain4j-1.1.0-blue.svg)](https://github.com/langchain4j/langchain4j)
@@ -66,10 +68,5 @@ npm run dev
 - `InterviewQuestionTool`: Interview question search
 - `SafeInputGuardrail`: Input safety checks
 
-## 🙏 Credits
 
-- Inspired by 程序员鱼皮
-- [LangChain4j](https://github.com/langchain4j/langchain4j)
-- [OpenAI](https://openai.com/)
-- [Spring Boot](https://spring.io/projects/spring-boot)
-- [Vue.js](https://vuejs.org/)
+
